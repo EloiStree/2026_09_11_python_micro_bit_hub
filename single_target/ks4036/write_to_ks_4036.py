@@ -11,9 +11,6 @@ UDP_HOST = "0.0.0.0"
 UDP_PORT = 2511
 ## BLE write characteristic UUID for the micro:bit USE ON RELY
 WRITE_UUID = "e97d3b10-251d-470a-a062-fa1922dfa9a8"
-
-
-
 WRITE_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 
 
