@@ -69,6 +69,7 @@ BLEAK_CLIENT_KWARGS = {
 # ============================================================
 
 USE_DEBUG_PRINT = True
+USE_DEBUG_PRINT = False
 
 
 def debug(*args):
