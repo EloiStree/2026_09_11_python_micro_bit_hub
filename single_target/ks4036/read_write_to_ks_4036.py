@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import signal
+import socket
 import sys
 from typing import Optional
 
@@ -249,13 +250,37 @@ def uart_notification_handler(sender, data):
 # BLE -> UDP
 # ============================================================
 
+_udp_broadcast_socket: Optional[socket.socket] = None
+
+
+def get_udp_broadcast_socket() -> socket.socket:
+    """
+    Lazily create (once) a UDP socket configured for broadcast sends.
+    Using a dedicated broadcast-enabled socket lets us fan out the
+    same message to every target port via a real network broadcast
+    (255.255.255.255) instead of unicasting to each IP individually.
+    """
+    global _udp_broadcast_socket
+
+    if _udp_broadcast_socket is None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.setblocking(False)
+        _udp_broadcast_socket = sock
+
+    return _udp_broadcast_socket
+
+
 async def udp_sender():
     """
-    Forward micro:bit -> UDP data using the same asyncio
-    DatagramTransport created for listening, instead of a
-    second raw socket. This avoids having to manage a
-    non-blocking socket by hand for loop.sock_sendto().
+    Forward micro:bit -> UDP data as a broadcast message (websocket-style
+    fan-out) to every port listed in UDP_TARGETS. Instead of unicasting
+    to each configured IP, the payload is broadcast on the local network
+    (255.255.255.255) so any listener bound to that port receives it,
+    regardless of its actual IP address.
     """
+
+    loop = asyncio.get_running_loop()
 
     while True:
 
@@ -263,15 +288,14 @@ async def udp_sender():
 
         try:
 
-            if udp_transport is None:
-                print("UDP transport not ready; dropping BLE packet:", repr(data))
-                continue
-
             payload = get_udp_prefix() + data
+            sock = get_udp_broadcast_socket()
 
-            for ip, port in UDP_TARGETS:
-                udp_transport.sendto(payload, (ip, port))
-                print(f"UDP TX -> {ip}:{port}: {payload!r}")
+            ports = {port for _ip, port in UDP_TARGETS}
+
+            for port in ports:
+                await loop.sock_sendto(sock, payload, ("255.255.255.255", port))
+                print(f"UDP BROADCAST -> 255.255.255.255:{port}: {payload!r}")
 
         except Exception as exc:
             print("UDP TX FAILED:", repr(exc))
