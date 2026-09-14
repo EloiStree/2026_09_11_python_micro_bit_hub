@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import signal
+import sys
 from typing import Optional
 
 from bleak import BleakClient, BleakScanner
@@ -30,7 +31,7 @@ DEFAULT_ATT_MTU = 23
 # MICRO:BIT NORDIC UART SERVICE
 # ============================================================
 
-NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+# NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 
 # Python -> micro:bit (Nordic UART RX characteristic)
 ## DONT TOUCH THAT IT IS THE GOOD ONE
@@ -101,9 +102,10 @@ udp_transport: Optional[asyncio.DatagramTransport] = None
 # ============================================================
 # PREFIX
 # ============================================================
-
+UART_SUFFIX_BLE_TO_UDP = "uart|ADDRESS|"
 def get_udp_prefix() -> bytes:
-    return f"uart|{MICRO_BIT_ADDRESS}|".encode("utf-8")
+    text_to_send = UART_SUFFIX_BLE_TO_UDP.replace("ADDRESS", MICRO_BIT_ADDRESS)
+    return text_to_send.encode("utf-8")
 
 
 # ============================================================
@@ -607,19 +609,27 @@ async def main():
     global UDP_LISTENER_PORT
     global UDP_TARGETS
     global USE_DEBUG_PRINT
-    global udp_transport
+    global UART_SUFFIX_BLE_TO_UDP
 
-    args = parse_args()
+    # Positional-style arguments (used by the __main__ block below to
+    # set globals directly) are incompatible with argparse's flag-based
+    # options (--microbit, --mask, etc.). If any positional arguments
+    # were supplied on the command line, skip argparse entirely and
+    # rely on the globals already set from sys.argv in __main__.
+    positional_args_used = len(sys.argv) > 1 and not sys.argv[1].startswith("--")
 
-    MICRO_BIT_ADDRESS = args.microbit
-    UDP_LISTENER_MASK = args.mask
-    UDP_LISTENER_PORT = args.port
+    if not positional_args_used:
+        args = parse_args()
 
-    if args.quiet:
-        USE_DEBUG_PRINT = False
+        MICRO_BIT_ADDRESS = args.microbit
+        UDP_LISTENER_MASK = args.mask
+        UDP_LISTENER_PORT = args.port
 
-    if args.target:
-        UDP_TARGETS = [parse_target(t) for t in args.target]
+        if args.quiet:
+            USE_DEBUG_PRINT = False
+
+        if args.target:
+            UDP_TARGETS = [parse_target(t) for t in args.target]
 
     loop = asyncio.get_running_loop()
 
@@ -688,13 +698,90 @@ async def main():
                 debug("final disconnect failed:", repr(exc))
 
 
+
+
+
+
+
+
+
 # ============================================================
 # ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":
+
+
+ 
+    args = sys.argv[1:]
+
+    if len(args) > 0:
+        # params_in_ipv4_mask = "0.0.0.0"
+        # params_in_listen_port = 2510
+        # params_out_ipv4_target = "127.0.0.1"
+        # params_out_send_port = 2511
+        # params_ble_micro_bit_address = "00:00:00:00:00:00"
+        # params_ble_uuid_write = "00000000-0000-0000-0000-000000000000"
+        # params_ble_uuid_read = "00000000-0000-0000-0000-000000000000"
+        # params_use_debug_print_traffic = True
+        # python name_of_script.py "<UDP_LISTENER_MASK>" "<UDP_LISTENER_PORT>" "<UDP_TARGET_IP>" "<UDP_TARGET_PORT>" "<MICRO_BIT_ADDRESS>" "<WRITE_CHARACTERISTIC_UUID>" "<READ_CHARACTERISTIC_UUID>" "<USE_DEBUG_PRINT_TRAFFIC>" "<UART_SUFFIXT_BLE_TO_UDP>"
+        
+        if len(args) >= 1:
+            #params_in_ipv4_mask = args[0]
+            UDP_LISTENER_MASK = args[0]
+        if len(args) >= 2:
+            #params_in_listen_port = int(args[1])
+            UDP_LISTENER_PORT = int(args[1])    
+        if len(args) >= 4:
+            #params_out_ipv4_target = args[2]
+            UDP_TARGETS[0] = (args[2], int(args[3]))
+        if len(args) >= 5:
+            #params_ble_micro_bit_address = args[4]
+            MICRO_BIT_ADDRESS = args[4]
+        if len(args) >= 6:
+            #params_ble_uuid_write = args[5]
+            WRITE_CHARACTERISTIC_UUID = args[5]
+        if len(args) >= 7:
+            #params_ble_uuid_read = args[6]
+            READ_CHARACTERISTIC_UUID = args[6]
+        if len(args) >= 8:
+            #params_use_debug_print_traffic = args[7].lower() in ("1", "true", "yes", "on")
+            USE_DEBUG_PRINT_TRAFFIC = args[7].lower() in ("1", "true", "yes", "on")
+        if len(args) >=9:
+            UART_SUFFIX_BLE_TO_UDP = args[8]
+
+        # micro:bit BLE address
+        # MICRO_BIT_ADDRESS = "DF:C4:94:6F:5D:2B"
+
+        # UDP server
+        # UDP_LISTENER_MASK = "0.0.0.0"
+        # UDP_LISTENER_PORT = 2511
+
+        # UDP destinations for micro:bit -> UDP
+        # UDP_TARGETS = [
+        #     ("127.0.0.1", 2510),
+        #   ]
+
+
+        # Python -> micro:bit (Nordic UART RX characteristic)
+        ## DONT TOUCH THAT IT IS THE GOOD ONE
+        #WRITE_CHARACTERISTIC_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+
+        # micro:bit -> Python (Nordic UART TX characteristic, notify)
+        ## DONT TOUCH THAT IT IS THE GOOD ONE
+        #READ_CHARACTERISTIC_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
+
+
+
+
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print()
         print("Bridge stopped.")
+
+
+
+
+
